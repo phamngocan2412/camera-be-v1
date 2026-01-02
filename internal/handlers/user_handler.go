@@ -17,6 +17,17 @@ func NewUserHandler(s *service.UserService) *UserHandler {
 	return &UserHandler{userService: s}
 }
 
+// GetMe godoc
+// @Summary      Get current user profile
+// @Description  Get the profile of the currently authenticated user
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  models.UserProfile
+// @Failure      401  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Router       /api/users/me [get]
 func (h *UserHandler) GetMe(c *gin.Context) {
 	userID := c.GetInt("user_id")
 	profile, err := h.userService.GetProfile(userID)
@@ -27,6 +38,19 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 	c.JSON(http.StatusOK, profile)
 }
 
+// UpdateMe godoc
+// @Summary      Update current user profile
+// @Description  Update the profile of the currently authenticated user
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request  body      models.UpdateProfileRequest  true  "Update profile request"
+// @Success      200      {object}  models.UserProfile
+// @Failure      400      {object}  map[string]string
+// @Failure      401      {object}  map[string]string
+// @Failure      409      {object}  map[string]string
+// @Router       /api/users/me [put]
 func (h *UserHandler) UpdateMe(c *gin.Context) {
 	userID := c.GetInt("user_id")
 	var req models.UpdateProfileRequest
@@ -47,6 +71,19 @@ func (h *UserHandler) UpdateMe(c *gin.Context) {
 	c.JSON(http.StatusOK, profile)
 }
 
+// ChangePassword godoc
+// @Summary      Change user password
+// @Description  Change the password of the currently authenticated user
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request  body      models.ChangePasswordRequest  true  "Change password request"
+// @Success      200      {object}  map[string]string
+// @Failure      400      {object}  map[string]string
+// @Failure      401      {object}  map[string]string
+// @Failure      500      {object}  map[string]string
+// @Router       /api/users/me/password [put]
 func (h *UserHandler) ChangePassword(c *gin.Context) {
 	userID := c.GetInt("user_id")
 	var req models.ChangePasswordRequest

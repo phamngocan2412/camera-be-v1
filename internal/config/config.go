@@ -20,7 +20,10 @@ type Config struct {
 func LoadConfig() (*Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath("../../configs") // từ internal chạy
+	viper.AddConfigPath("./configs")
+	viper.AddConfigPath("../configs")
+	viper.AddConfigPath("../../configs")
+	viper.AddConfigPath(".")
 
 	viper.AutomaticEnv() // override bằng env vars (rất quan trọng cho production/Docker)
 

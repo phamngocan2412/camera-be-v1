@@ -1,4 +1,4 @@
-FROM golang:1.22 AS builder
+FROM golang:1.24.0 AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
@@ -11,3 +11,4 @@ WORKDIR /root/
 COPY --from=builder /app/api .
 COPY configs/config.yaml ./configs/
 CMD ["./api"]
+
