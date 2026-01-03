@@ -9,3 +9,9 @@ database:
 
 log:
   level: "debug"   # debug, info, warn, error
+
+smtp:
+  host: "smtp.gmail.com"
+  port: 587
+  email: "phamngocan2412@gmail.com" # Replace with your email or env var
+  password: "" # Replace with env var

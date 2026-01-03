@@ -45,7 +45,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.UserProfile"
+                            "$ref": "#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.UserProfile"
                         }
                     },
                     "401": {
@@ -92,7 +92,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.UpdateProfileRequest"
+                            "$ref": "#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.UpdateProfileRequest"
                         }
                     }
                 ],
@@ -100,7 +100,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.UserProfile"
+                            "$ref": "#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.UserProfile"
                         }
                     },
                     "400": {
@@ -158,7 +158,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.ChangePasswordRequest"
+                            "$ref": "#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.ChangePasswordRequest"
                         }
                     }
                 ],
@@ -222,7 +222,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.AuthRequest"
+                            "$ref": "#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.LoginRequest"
                         }
                     }
                 ],
@@ -230,7 +230,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.AuthResponse"
+                            "$ref": "#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.AuthResponse"
                         }
                     },
                     "400": {
@@ -274,7 +274,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.AuthRequest"
+                            "$ref": "#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.RegisterRequest"
                         }
                     }
                 ],
@@ -282,7 +282,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/models.AuthResponse"
+                            "$ref": "#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.AuthResponse"
                         }
                     },
                     "400": {
@@ -305,10 +305,178 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/auth/request-otp": {
+            "post": {
+                "description": "Send a 6-digit OTP code to user's email for verification",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Request OTP verification code",
+                "parameters": [
+                    {
+                        "description": "Email address",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "email": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/verify-otp": {
+            "post": {
+                "description": "Verify the OTP code and return user authentication token",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Verify OTP code",
+                "parameters": [
+                    {
+                        "description": "Email and OTP code",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "email": {
+                                    "type": "string"
+                                },
+                                "otp": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.AuthResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
-        "models.AuthRequest": {
+        "github_com_phamngocan2412_camera-be-v1_internal_models.AuthResponse": {
+            "type": "object",
+            "properties": {
+                "country_code": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "phone_number": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_phamngocan2412_camera-be-v1_internal_models.ChangePasswordRequest": {
+            "type": "object",
+            "required": [
+                "new_password",
+                "old_password"
+            ],
+            "properties": {
+                "new_password": {
+                    "type": "string",
+                    "minLength": 6
+                },
+                "old_password": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_phamngocan2412_camera-be-v1_internal_models.LoginRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "password"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_phamngocan2412_camera-be-v1_internal_models.RegisterRequest": {
             "type": "object",
             "required": [
                 "country_code",
@@ -340,37 +508,7 @@ const docTemplate = `{
                 }
             }
         },
-        "models.AuthResponse": {
-            "type": "object",
-            "properties": {
-                "email": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "token": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.ChangePasswordRequest": {
-            "type": "object",
-            "required": [
-                "new_password",
-                "old_password"
-            ],
-            "properties": {
-                "new_password": {
-                    "type": "string",
-                    "minLength": 6
-                },
-                "old_password": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.UpdateProfileRequest": {
+        "github_com_phamngocan2412_camera-be-v1_internal_models.UpdateProfileRequest": {
             "type": "object",
             "properties": {
                 "email": {
@@ -378,7 +516,7 @@ const docTemplate = `{
                 }
             }
         },
-        "models.UserProfile": {
+        "github_com_phamngocan2412_camera-be-v1_internal_models.UserProfile": {
             "type": "object",
             "properties": {
                 "email": {

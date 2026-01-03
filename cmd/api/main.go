@@ -58,17 +58,19 @@ func main() {
 	}
 
 	userRepo := repository.NewGORMUserRepository(dbConn)
-	authService := service.NewAuthService(userRepo, cfg.JWT.Secret)
+	authService := service.NewAuthService(userRepo, cfg.JWT.Secret, cfg.SMTP)
 	userService := service.NewUserService(userRepo)
 
 	authHandler := handlers.NewAuthHandler(authService)
 	userHandler := handlers.NewUserHandler(userService)
 
-	// Public
 	auth := r.Group("/auth")
 	{
 		auth.POST("/register", authHandler.Register)
 		auth.POST("/login", authHandler.Login)
+		auth.POST("/forgot-password", authHandler.RequestOTP)
+		auth.POST("/request-otp", authHandler.RequestOTP)
+		auth.POST("/verify-otp", authHandler.VerifyOTP)
 	}
 
 	// Protected

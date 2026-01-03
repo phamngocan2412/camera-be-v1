@@ -66,6 +66,10 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	res, err := h.service.Register(req.Email, req.Password, req.FirstName, req.LastName, req.PhoneNumber, req.CountryCode)
 	if err != nil {
+		if err.Error() == "pending_verification" {
+			c.JSON(http.StatusOK, gin.H{"message": "Tài khoản của bạn đang chờ xác thực, chúng tôi đã gửi lại mã mới vào hộp thư"})
+			return
+		}
 		if err.Error() == "email already exists" {
 			c.JSON(http.StatusConflict, gin.H{"error": "email already exists"})
 		} else if err.Error() == "phone number already exists" {
@@ -98,8 +102,79 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	res, err := h.service.Login(req.Email, req.Password)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		if err.Error() == "email not verified" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Email not verified"})
+			return
+		}
+		if err.Error() == "user not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+		if err.Error() == "wrong password" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Wrong password"})
+			return
+		}
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
 	}
 	c.JSON(http.StatusOK, res)
+}
+
+// RequestOTP godoc
+// @Summary      Request OTP verification code
+// @Description  Send a 6-digit OTP code to user's email for verification
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request  body      object{email=string}  true  "Email address"
+// @Success      200      {object}  map[string]string
+// @Failure      400      {object}  map[string]string
+// @Failure      500      {object}  map[string]string
+// @Router       /auth/request-otp [post]
+func (h *AuthHandler) RequestOTP(c *gin.Context) {
+	var req struct {
+		Email string `json:"email" binding:"required,email"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.service.RequestOTP(req.Email); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Verification code sent"})
+}
+
+// VerifyOTP godoc
+// @Summary      Verify OTP code
+// @Description  Verify the OTP code and return user authentication token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request  body      object{email=string,otp=string}  true  "Email and OTP code"
+// @Success      200      {object}  models.AuthResponse
+// @Failure      400      {object}  map[string]string
+// @Router       /auth/verify-otp [post]
+func (h *AuthHandler) VerifyOTP(c *gin.Context) {
+	var req struct {
+		Email string `json:"email" binding:"required,email"`
+		OTP   string `json:"otp" binding:"required,len=6"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	authResponse, err := h.service.VerifyOTP(req.Email, req.OTP)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, authResponse)
 }

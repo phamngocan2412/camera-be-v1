@@ -1,6 +1,44 @@
 basePath: /
 definitions:
-  models.AuthRequest:
+  github_com_phamngocan2412_camera-be-v1_internal_models.AuthResponse:
+    properties:
+      country_code:
+        type: string
+      email:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      phone_number:
+        type: string
+      token:
+        type: string
+    type: object
+  github_com_phamngocan2412_camera-be-v1_internal_models.ChangePasswordRequest:
+    properties:
+      new_password:
+        minLength: 6
+        type: string
+      old_password:
+        type: string
+    required:
+    - new_password
+    - old_password
+    type: object
+  github_com_phamngocan2412_camera-be-v1_internal_models.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  github_com_phamngocan2412_camera-be-v1_internal_models.RegisterRequest:
     properties:
       country_code:
         type: string
@@ -23,32 +61,12 @@ definitions:
     - password
     - phone_number
     type: object
-  models.AuthResponse:
-    properties:
-      email:
-        type: string
-      id:
-        type: integer
-      token:
-        type: string
-    type: object
-  models.ChangePasswordRequest:
-    properties:
-      new_password:
-        minLength: 6
-        type: string
-      old_password:
-        type: string
-    required:
-    - new_password
-    - old_password
-    type: object
-  models.UpdateProfileRequest:
+  github_com_phamngocan2412_camera-be-v1_internal_models.UpdateProfileRequest:
     properties:
       email:
         type: string
     type: object
-  models.UserProfile:
+  github_com_phamngocan2412_camera-be-v1_internal_models.UserProfile:
     properties:
       email:
         type: string
@@ -79,7 +97,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.UserProfile'
+            $ref: '#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.UserProfile'
         "401":
           description: Unauthorized
           schema:
@@ -107,14 +125,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/models.UpdateProfileRequest'
+          $ref: '#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.UpdateProfileRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.UserProfile'
+            $ref: '#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.UserProfile'
         "400":
           description: Bad Request
           schema:
@@ -149,7 +167,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/models.ChangePasswordRequest'
+          $ref: '#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.ChangePasswordRequest'
       produces:
       - application/json
       responses:
@@ -193,14 +211,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/models.AuthRequest'
+          $ref: '#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.LoginRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.AuthResponse'
+            $ref: '#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.AuthResponse'
         "400":
           description: Bad Request
           schema:
@@ -227,14 +245,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/models.AuthRequest'
+          $ref: '#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.RegisterRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/models.AuthResponse'
+            $ref: '#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.AuthResponse'
         "400":
           description: Bad Request
           schema:
@@ -248,6 +266,78 @@ paths:
               type: string
             type: object
       summary: Register a new user
+      tags:
+      - auth
+  /auth/request-otp:
+    post:
+      consumes:
+      - application/json
+      description: Send a 6-digit OTP code to user's email for verification
+      parameters:
+      - description: Email address
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            email:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Request OTP verification code
+      tags:
+      - auth
+  /auth/verify-otp:
+    post:
+      consumes:
+      - application/json
+      description: Verify the OTP code and return user authentication token
+      parameters:
+      - description: Email and OTP code
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            email:
+              type: string
+            otp:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.AuthResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Verify OTP code
       tags:
       - auth
 securityDefinitions:

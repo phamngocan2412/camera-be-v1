@@ -1,6 +1,10 @@
 package config
 
-import "github.com/spf13/viper"
+import (
+	"strings"
+
+	"github.com/spf13/viper"
+)
 
 type Config struct {
 	Server struct {
@@ -15,6 +19,14 @@ type Config struct {
 	Log struct {
 		Level string `mapstructure:"level"`
 	} `mapstructure:"log"`
+	SMTP SMTPConfig `mapstructure:"smtp"`
+}
+
+type SMTPConfig struct {
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	Email    string `mapstructure:"email"`
+	Password string `mapstructure:"password"`
 }
 
 func LoadConfig() (*Config, error) {
@@ -25,7 +37,8 @@ func LoadConfig() (*Config, error) {
 	viper.AddConfigPath("../../configs")
 	viper.AddConfigPath(".")
 
-	viper.AutomaticEnv() // override bằng env vars (rất quan trọng cho production/Docker)
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv() // override with env vars
 
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, err

@@ -125,6 +125,14 @@ docker compose version
 docker compose up --build
 docker compose up --build -d
 
-## Nếu lỗi và sửa nhiều 
+## Nếu lỗi và sửa nhiều xóa toàn bộ dữ liệu DB
 docker compose down -v
 docker compose up --build
+
+## Nếu lỗi và sửa nhiều mà không xóa toàn bộ dữ liệu DB
+docker compose down
+docker compose up --build
+
+## Tài khoản admin
+tài khoản admin : admin@admin.com
+password : adminadmin

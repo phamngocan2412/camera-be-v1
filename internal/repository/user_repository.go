@@ -2,6 +2,7 @@ package repository
 
 import (
 	"errors"
+	"strings"
 
 	"gorm.io/gorm"
 
@@ -34,13 +35,14 @@ func (r *GORMUserRepository) FindByEmail(email string) (*models.User, error) {
 		return nil, err
 	}
 	return &models.User{
-		ID:           int(u.ID),
-		Email:        u.Email,
-		FirstName:    u.FirstName,
-		LastName:     u.LastName,
-		PhoneNumber:  u.PhoneNumber,
-		CountryCode:  u.CountryCode,
-		PasswordHash: u.PasswordHash,
+		ID:            int(u.ID),
+		Email:         u.Email,
+		FirstName:     u.FirstName,
+		LastName:      u.LastName,
+		PhoneNumber:   u.PhoneNumber,
+		CountryCode:   u.CountryCode,
+		PasswordHash:  u.PasswordHash,
+		EmailVerified: u.EmailVerified,
 	}, nil
 }
 
@@ -53,13 +55,14 @@ func (r *GORMUserRepository) FindByPhoneNumber(phoneNumber string) (*models.User
 		return nil, err
 	}
 	return &models.User{
-		ID:           int(u.ID),
-		Email:        u.Email,
-		FirstName:    u.FirstName,
-		LastName:     u.LastName,
-		PhoneNumber:  u.PhoneNumber,
-		CountryCode:  u.CountryCode,
-		PasswordHash: u.PasswordHash,
+		ID:            int(u.ID),
+		Email:         u.Email,
+		FirstName:     u.FirstName,
+		LastName:      u.LastName,
+		PhoneNumber:   u.PhoneNumber,
+		CountryCode:   u.CountryCode,
+		PasswordHash:  u.PasswordHash,
+		EmailVerified: u.EmailVerified,
 	}, nil
 }
 
@@ -71,19 +74,38 @@ func (r *GORMUserRepository) FindByID(id int) (*models.User, error) {
 		}
 		return nil, err
 	}
-	return &models.User{ID: int(u.ID), Email: u.Email, PasswordHash: u.PasswordHash}, nil
+	return &models.User{
+		ID:            int(u.ID),
+		Email:         u.Email,
+		PasswordHash:  u.PasswordHash,
+		EmailVerified: u.EmailVerified,
+	}, nil
 }
 
 func (r *GORMUserRepository) Create(user *models.User) error {
 	gormUser := db.User{
-		Email:        user.Email,
-		PasswordHash: user.PasswordHash,
-		FirstName:    user.FirstName,
-		LastName:     user.LastName,
-		PhoneNumber:  user.PhoneNumber,
-		CountryCode:  user.CountryCode,
+		Email:         user.Email,
+		PasswordHash:  user.PasswordHash,
+		FirstName:     user.FirstName,
+		LastName:      user.LastName,
+		PhoneNumber:   user.PhoneNumber,
+		CountryCode:   user.CountryCode,
+		EmailVerified: user.EmailVerified,
 	}
 	if err := r.db.Create(&gormUser).Error; err != nil {
+		// Check for unique constraint violation (duplicate email)
+		errStr := err.Error()
+		if errors.Is(err, gorm.ErrDuplicatedKey) ||
+			strings.Contains(errStr, "duplicate key") ||
+			strings.Contains(errStr, "SQLSTATE 23505") {
+			// Check if it's the email constraint
+			if strings.Contains(errStr, "idx_users_email") ||
+				strings.Contains(errStr, "users_email_key") {
+				return errors.New("email already exists")
+			}
+			// Generic duplicate error (likely email since that's the main unique field)
+			return errors.New("email already exists")
+		}
 		return err
 	}
 	user.ID = int(gormUser.ID)
@@ -92,5 +114,14 @@ func (r *GORMUserRepository) Create(user *models.User) error {
 
 func (r *GORMUserRepository) Update(user *models.User) error {
 	return r.db.Model(&db.User{ID: uint(user.ID)}).
-		Updates(map[string]interface{}{"email": user.Email, "password_hash": user.PasswordHash}).Error
+		Updates(map[string]interface{}{
+			"email":          user.Email,
+			"password_hash":  user.PasswordHash,
+			"first_name":     user.FirstName,
+			"last_name":      user.LastName,
+			"phone_number":   user.PhoneNumber,
+			"country_code":   user.CountryCode,
+			"email_verified": user.EmailVerified,
+			"created_at":     user.CreatedAt,
+		}).Error
 }

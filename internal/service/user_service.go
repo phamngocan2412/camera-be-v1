@@ -22,7 +22,14 @@ func (s *UserService) GetProfile(userID int) (*models.UserProfile, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &models.UserProfile{ID: user.ID, Email: user.Email}, nil
+	return &models.UserProfile{
+		ID:          user.ID,
+		Email:       user.Email,
+		FirstName:   user.FirstName,
+		LastName:    user.LastName,
+		PhoneNumber: user.PhoneNumber,
+		CountryCode: user.CountryCode,
+	}, nil
 }
 
 func (s *UserService) UpdateProfile(userID int, req models.UpdateProfileRequest) (*models.UserProfile, error) {
@@ -41,7 +48,12 @@ func (s *UserService) UpdateProfile(userID int, req models.UpdateProfileRequest)
 	if err := s.repo.Update(user); err != nil {
 		return nil, err
 	}
-	return &models.UserProfile{ID: user.ID, Email: user.Email}, nil
+	return &models.UserProfile{
+		ID:        user.ID,
+		Email:     user.Email,
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+	}, nil
 }
 
 func (s *UserService) ChangePassword(userID int, req models.ChangePasswordRequest) error {

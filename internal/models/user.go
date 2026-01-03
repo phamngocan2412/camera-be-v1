@@ -1,19 +1,29 @@
 package models
 
+import "time"
+
 type User struct {
-	ID           int    `json:"id"`
-	Email        string `json:"email"`
-	FirstName    string `json:"first_name"`
-	LastName     string `json:"last_name"`
-	PhoneNumber  string `json:"phone_number"`
-	CountryCode  string `json:"country_code"`
-	PasswordHash string `json:"-"`
+	ID            int       `json:"id"`
+	Email         string    `json:"email"`
+	FirstName     string    `json:"first_name"`
+	LastName      string    `json:"last_name"`
+	PhoneNumber   string    `json:"phone_number"`
+	CountryCode   string    `json:"country_code"`
+	PasswordHash  string    `json:"-"`
+	EmailVerified bool      `json:"email_verified" gorm:"default:false"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 type AuthResponse struct {
-	ID    int    `json:"id"`
-	Email string `json:"email"`
-	Token string `json:"token"`
+	ID          int    `json:"id"`
+	Email       string `json:"email"`
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	PhoneNumber string `json:"phone_number"`
+	CountryCode string `json:"country_code"`
+	Token       string `json:"token"`
+	IsVerified  bool   `json:"is_verified"`
 }
 
 type RegisterRequest struct {
@@ -31,8 +41,12 @@ type LoginRequest struct {
 }
 
 type UserProfile struct {
-	ID    int    `json:"id"`
-	Email string `json:"email"`
+	ID          int    `json:"id"`
+	Email       string `json:"email"`
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	PhoneNumber string `json:"phone_number"`
+	CountryCode string `json:"country_code"`
 }
 
 type UpdateProfileRequest struct {

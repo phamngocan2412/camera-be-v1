@@ -10,15 +10,16 @@ import (
 
 // User struct đại diện cho bảng users
 type User struct {
-	ID           uint      `gorm:"primaryKey"`
-	Email        string    `gorm:"uniqueIndex;not null"`
-	PasswordHash string    `gorm:"column:password_hash;not null"`
-	FirstName    string    `gorm:"column:first_name;not null"`
-	LastName     string    `gorm:"column:last_name;not null"`
-	PhoneNumber  string    `gorm:"uniqueIndex;not null"`
-	CountryCode  string    `gorm:"column:country_code;not null"`
-	CreatedAt    time.Time `gorm:"autoCreateTime"`
-	UpdatedAt    time.Time `gorm:"autoUpdateTime"`
+	ID            uint      `gorm:"primaryKey"`
+	Email         string    `gorm:"uniqueIndex;not null"`
+	PasswordHash  string    `gorm:"column:password_hash;not null"`
+	FirstName     string    `gorm:"column:first_name;not null"`
+	LastName      string    `gorm:"column:last_name;not null"`
+	PhoneNumber   string    `gorm:"uniqueIndex;not null"`
+	CountryCode   string    `gorm:"column:country_code;not null"`
+	EmailVerified bool      `gorm:"column:email_verified;default:false"`
+	CreatedAt     time.Time `gorm:"autoCreateTime"`
+	UpdatedAt     time.Time `gorm:"autoUpdateTime"`
 }
 
 func NewDatabase(dsn string) (*gorm.DB, error) {
