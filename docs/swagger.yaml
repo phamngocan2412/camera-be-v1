@@ -2,14 +2,26 @@ basePath: /
 definitions:
   models.AuthRequest:
     properties:
+      country_code:
+        type: string
       email:
+        type: string
+      first_name:
+        type: string
+      last_name:
         type: string
       password:
         minLength: 6
         type: string
+      phone_number:
+        type: string
     required:
+    - country_code
     - email
+    - first_name
+    - last_name
     - password
+    - phone_number
     type: object
   models.AuthResponse:
     properties:

@@ -123,6 +123,7 @@ docker compose version
 
 ## Chạy lại project
 docker compose up --build
+docker compose up --build -d
 
 ## Nếu lỗi và sửa nhiều 
 docker compose down -v

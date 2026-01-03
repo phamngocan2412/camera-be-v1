@@ -11,6 +11,7 @@ import (
 
 type UserRepository interface {
 	FindByEmail(email string) (*models.User, error)
+	FindByPhoneNumber(phoneNumber string) (*models.User, error)
 	FindByID(id int) (*models.User, error)
 	Create(user *models.User) error
 	Update(user *models.User) error
@@ -32,7 +33,34 @@ func (r *GORMUserRepository) FindByEmail(email string) (*models.User, error) {
 		}
 		return nil, err
 	}
-	return &models.User{ID: int(u.ID), Email: u.Email, PasswordHash: u.PasswordHash}, nil
+	return &models.User{
+		ID:           int(u.ID),
+		Email:        u.Email,
+		FirstName:    u.FirstName,
+		LastName:     u.LastName,
+		PhoneNumber:  u.PhoneNumber,
+		CountryCode:  u.CountryCode,
+		PasswordHash: u.PasswordHash,
+	}, nil
+}
+
+func (r *GORMUserRepository) FindByPhoneNumber(phoneNumber string) (*models.User, error) {
+	var u db.User
+	if err := r.db.Where("phone_number = ?", phoneNumber).First(&u).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("user not found")
+		}
+		return nil, err
+	}
+	return &models.User{
+		ID:           int(u.ID),
+		Email:        u.Email,
+		FirstName:    u.FirstName,
+		LastName:     u.LastName,
+		PhoneNumber:  u.PhoneNumber,
+		CountryCode:  u.CountryCode,
+		PasswordHash: u.PasswordHash,
+	}, nil
 }
 
 func (r *GORMUserRepository) FindByID(id int) (*models.User, error) {
@@ -47,7 +75,14 @@ func (r *GORMUserRepository) FindByID(id int) (*models.User, error) {
 }
 
 func (r *GORMUserRepository) Create(user *models.User) error {
-	gormUser := db.User{Email: user.Email, PasswordHash: user.PasswordHash}
+	gormUser := db.User{
+		Email:        user.Email,
+		PasswordHash: user.PasswordHash,
+		FirstName:    user.FirstName,
+		LastName:     user.LastName,
+		PhoneNumber:  user.PhoneNumber,
+		CountryCode:  user.CountryCode,
+	}
 	if err := r.db.Create(&gormUser).Error; err != nil {
 		return err
 	}

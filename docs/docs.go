@@ -311,16 +311,32 @@ const docTemplate = `{
         "models.AuthRequest": {
             "type": "object",
             "required": [
+                "country_code",
                 "email",
-                "password"
+                "first_name",
+                "last_name",
+                "password",
+                "phone_number"
             ],
             "properties": {
+                "country_code": {
+                    "type": "string"
+                },
                 "email": {
+                    "type": "string"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "last_name": {
                     "type": "string"
                 },
                 "password": {
                     "type": "string",
                     "minLength": 6
+                },
+                "phone_number": {
+                    "type": "string"
                 }
             }
         },

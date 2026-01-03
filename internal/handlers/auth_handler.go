@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/nyaruka/phonenumbers"
 
 	"github.com/phamngocan2412/camera-be-v1/internal/models"
 	"github.com/phamngocan2412/camera-be-v1/internal/service"
@@ -23,22 +24,52 @@ func NewAuthHandler(s *service.AuthService) *AuthHandler {
 // @Tags         auth
 // @Accept       json
 // @Produce      json
-// @Param        request  body      models.AuthRequest  true  "Registration request"
+// @Param        request  body      models.RegisterRequest  true  "Registration request"
 // @Success      201      {object}  models.AuthResponse
 // @Failure      400      {object}  map[string]string
 // @Failure      409      {object}  map[string]string
 // @Router       /auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
-	var req models.AuthRequest
+	var req models.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	res, err := h.service.Register(req.Email, req.Password)
+	// Validate Phone Number
+	var parsedNumber *phonenumbers.PhoneNumber
+	var err error
+
+	// Check if CountryCode looks like a calling code (starts with +)
+	if len(req.CountryCode) > 0 && req.CountryCode[0] == '+' {
+		// Concatenate: +84 + 090... -> +84090...
+		// parse with default region empty, trusting the + prefix
+		fullNumber := req.CountryCode + req.PhoneNumber
+		parsedNumber, err = phonenumbers.Parse(fullNumber, "")
+	} else {
+		// Treat CountryCode as Region Code (e.g. "VN")
+		parsedNumber, err = phonenumbers.Parse(req.PhoneNumber, req.CountryCode)
+	}
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid phone number format"})
+		return
+	}
+	if !phonenumbers.IsValidNumber(parsedNumber) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid phone number"})
+		return
+	}
+
+	// Format phone number to E.164 standard before saving
+	formattedNum := phonenumbers.Format(parsedNumber, phonenumbers.E164)
+	req.PhoneNumber = formattedNum
+
+	res, err := h.service.Register(req.Email, req.Password, req.FirstName, req.LastName, req.PhoneNumber, req.CountryCode)
 	if err != nil {
 		if err.Error() == "email already exists" {
 			c.JSON(http.StatusConflict, gin.H{"error": "email already exists"})
+		} else if err.Error() == "phone number already exists" {
+			c.JSON(http.StatusConflict, gin.H{"error": "phone number already exists"})
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		}
@@ -53,13 +84,13 @@ func (h *AuthHandler) Register(c *gin.Context) {
 // @Tags         auth
 // @Accept       json
 // @Produce      json
-// @Param        request  body      models.AuthRequest  true  "Login request"
+// @Param        request  body      models.LoginRequest  true  "Login request"
 // @Success      200      {object}  models.AuthResponse
 // @Failure      400      {object}  map[string]string
 // @Failure      401      {object}  map[string]string
 // @Router       /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
-	var req models.AuthRequest
+	var req models.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

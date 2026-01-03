@@ -20,13 +20,25 @@ func NewAuthService(repo repository.UserRepository, secret string) *AuthService 
 	return &AuthService{repo: repo, jwtSecret: secret}
 }
 
-func (s *AuthService) Register(email, password string) (*models.AuthResponse, error) {
+func (s *AuthService) Register(email, password, firstName, lastName, phoneNumber, countryCode string) (*models.AuthResponse, error) {
+	// Check if phone number already exists
+	if _, err := s.repo.FindByPhoneNumber(phoneNumber); err == nil {
+		return nil, errors.New("phone number already exists")
+	}
+
 	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
 	}
 
-	user := &models.User{Email: email, PasswordHash: string(hashed)}
+	user := &models.User{
+		Email:        email,
+		PasswordHash: string(hashed),
+		FirstName:    firstName,
+		LastName:     lastName,
+		PhoneNumber:  phoneNumber,
+		CountryCode:  countryCode,
+	}
 	if err := s.repo.Create(user); err != nil {
 		return nil, err
 	}
