@@ -1,6 +1,6 @@
 basePath: /
 definitions:
-  github_com_phamngocan2412_camera-be-v1_internal_models.AuthResponse:
+  models.AuthResponse:
     properties:
       country_code:
         type: string
@@ -10,6 +10,8 @@ definitions:
         type: string
       id:
         type: integer
+      is_verified:
+        type: boolean
       last_name:
         type: string
       phone_number:
@@ -17,7 +19,7 @@ definitions:
       token:
         type: string
     type: object
-  github_com_phamngocan2412_camera-be-v1_internal_models.ChangePasswordRequest:
+  models.ChangePasswordRequest:
     properties:
       new_password:
         minLength: 6
@@ -28,7 +30,14 @@ definitions:
     - new_password
     - old_password
     type: object
-  github_com_phamngocan2412_camera-be-v1_internal_models.LoginRequest:
+  models.ForgotPasswordRequest:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  models.LoginRequest:
     properties:
       email:
         type: string
@@ -38,7 +47,7 @@ definitions:
     - email
     - password
     type: object
-  github_com_phamngocan2412_camera-be-v1_internal_models.RegisterRequest:
+  models.RegisterRequest:
     properties:
       country_code:
         type: string
@@ -61,17 +70,39 @@ definitions:
     - password
     - phone_number
     type: object
-  github_com_phamngocan2412_camera-be-v1_internal_models.UpdateProfileRequest:
+  models.ResetPasswordRequest:
+    properties:
+      email:
+        type: string
+      new_password:
+        minLength: 6
+        type: string
+      otp:
+        type: string
+    required:
+    - email
+    - new_password
+    - otp
+    type: object
+  models.UpdateProfileRequest:
     properties:
       email:
         type: string
     type: object
-  github_com_phamngocan2412_camera-be-v1_internal_models.UserProfile:
+  models.UserProfile:
     properties:
+      country_code:
+        type: string
       email:
+        type: string
+      first_name:
         type: string
       id:
         type: integer
+      last_name:
+        type: string
+      phone_number:
+        type: string
     type: object
 host: localhost:8080
 info:
@@ -97,7 +128,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.UserProfile'
+            $ref: '#/definitions/models.UserProfile'
         "401":
           description: Unauthorized
           schema:
@@ -125,14 +156,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.UpdateProfileRequest'
+          $ref: '#/definitions/models.UpdateProfileRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.UserProfile'
+            $ref: '#/definitions/models.UserProfile'
         "400":
           description: Bad Request
           schema:
@@ -167,7 +198,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.ChangePasswordRequest'
+          $ref: '#/definitions/models.ChangePasswordRequest'
       produces:
       - application/json
       responses:
@@ -200,6 +231,42 @@ paths:
       summary: Change user password
       tags:
       - users
+  /auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Send OTP to email for password reset checking if user exists
+      parameters:
+      - description: Forgot Password request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.ForgotPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Request password reset
+      tags:
+      - auth
   /auth/login:
     post:
       consumes:
@@ -211,14 +278,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.LoginRequest'
+          $ref: '#/definitions/models.LoginRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.AuthResponse'
+            $ref: '#/definitions/models.AuthResponse'
         "400":
           description: Bad Request
           schema:
@@ -245,14 +312,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.RegisterRequest'
+          $ref: '#/definitions/models.RegisterRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.AuthResponse'
+            $ref: '#/definitions/models.AuthResponse'
         "400":
           description: Bad Request
           schema:
@@ -307,6 +374,36 @@ paths:
       summary: Request OTP verification code
       tags:
       - auth
+  /auth/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: Reset password using OTP
+      parameters:
+      - description: Reset Password request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.ResetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Reset password
+      tags:
+      - auth
   /auth/verify-otp:
     post:
       consumes:
@@ -330,7 +427,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_phamngocan2412_camera-be-v1_internal_models.AuthResponse'
+            $ref: '#/definitions/models.AuthResponse'
         "400":
           description: Bad Request
           schema:
@@ -338,6 +435,42 @@ paths:
               type: string
             type: object
       summary: Verify OTP code
+      tags:
+      - auth
+  /auth/verify-reset-otp:
+    post:
+      consumes:
+      - application/json
+      description: Check if the OTP is valid without consuming it (for multi-step
+        reset flow)
+      parameters:
+      - description: Email and OTP code
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            email:
+              type: string
+            otp:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Verify OTP for Password Reset
       tags:
       - auth
 securityDefinitions:

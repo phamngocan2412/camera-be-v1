@@ -17,8 +17,10 @@ import (
 )
 
 type OTPData struct {
-	Code      string
-	ExpiresAt time.Time
+	Code       string
+	ExpiresAt  time.Time
+	Attempts   int
+	LastSentAt time.Time
 }
 
 type AuthService struct {
@@ -137,7 +139,7 @@ func (s *AuthService) Login(email, password string) (*models.AuthResponse, error
 		return nil, errors.New("email not verified")
 	}
 
-	token, err := s.generateToken(user.ID, user.Email)
+	token, err := s.generateToken(user.ID, user.Email, user.TokenVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -154,28 +156,39 @@ func (s *AuthService) Login(email, password string) (*models.AuthResponse, error
 	}, nil
 }
 
-func (s *AuthService) generateToken(userID int, email string) (string, error) {
+func (s *AuthService) generateToken(userID int, email string, tokenVersion int) (string, error) {
 	claims := jwt.MapClaims{
-		"user_id": userID,
-		"email":   email,
-		"exp":     time.Now().Add(24 * time.Hour).Unix(),
+		"user_id":       userID,
+		"email":         email,
+		"token_version": tokenVersion,
+		"exp":           time.Now().Add(24 * time.Hour).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(s.jwtSecret))
 }
 
 func (s *AuthService) RequestOTP(email string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Check Rate Limiting (1 minute)
+	if existing, ok := s.otpMap[email]; ok {
+		if time.Since(existing.LastSentAt) < 1*time.Minute {
+			return errors.New("please wait 1 minute before requesting a new OTP")
+		}
+	}
+
 	// Generate 6 digit OTP
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 	otp := fmt.Sprintf("%06d", rnd.Intn(1000000))
 
 	// Store in map with expiry
-	s.mu.Lock()
 	s.otpMap[email] = OTPData{
-		Code:      otp,
-		ExpiresAt: time.Now().Add(5 * time.Minute),
+		Code:       otp,
+		ExpiresAt:  time.Now().Add(5 * time.Minute),
+		Attempts:   0,
+		LastSentAt: time.Now(),
 	}
-	s.mu.Unlock()
 
 	// DEBUG: Print OTP to console for testing
 	fmt.Printf("\n========== OTP DEBUG ==========\n")
@@ -189,27 +202,33 @@ func (s *AuthService) RequestOTP(email string) error {
 }
 
 func (s *AuthService) VerifyOTP(email, code string) (*models.AuthResponse, error) {
-	s.mu.RLock()
+	s.mu.Lock() // Use Lock instead of RLock because we update Attempts
 	data, exists := s.otpMap[email]
-	s.mu.RUnlock()
 
 	if !exists {
+		s.mu.Unlock()
 		return nil, errors.New("otp not found or expired")
 	}
 
 	if time.Now().After(data.ExpiresAt) {
-		s.mu.Lock()
 		delete(s.otpMap, email)
 		s.mu.Unlock()
 		return nil, errors.New("otp expired")
 	}
 
 	if data.Code != code {
+		data.Attempts++
+		s.otpMap[email] = data
+		if data.Attempts >= 5 {
+			delete(s.otpMap, email)
+			s.mu.Unlock()
+			return nil, errors.New("too many failed attempts, please request a new OTP")
+		}
+		s.mu.Unlock()
 		return nil, errors.New("invalid otp")
 	}
 
 	// Clear OTP after success
-	s.mu.Lock()
 	delete(s.otpMap, email)
 	s.mu.Unlock()
 
@@ -226,7 +245,7 @@ func (s *AuthService) VerifyOTP(email, code string) (*models.AuthResponse, error
 	}
 
 	// Generate token for verified user
-	token, err := s.generateToken(user.ID, user.Email)
+	token, err := s.generateToken(user.ID, user.Email, user.TokenVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -280,5 +299,104 @@ func (s *AuthService) SendVerificationEmail(toEmail, otp string) error {
 	if err := smtp.SendMail(addr, auth, s.smtpConfig.Email, []string{toEmail}, msg); err != nil {
 		return err
 	}
+	return nil
+}
+
+func (s *AuthService) ForgotPassword(email string) error {
+	_, err := s.repo.FindByEmail(email)
+	if err != nil {
+		// User not found - strict security might say "return nil" to avoid enumeration,
+		// but typically for UX we might want to say "user not found" or just send nothing.
+		// For this implementation, let's treat "user not found" as an error to the caller,
+		// or handle it gracefully. The handler can decide whether to expose it.
+		// If we want to mimic "always success" for security, we return nil here if ErrRecordNotFound.
+		return errors.New("user not found")
+	}
+
+	// User exists, send OTP
+	// We can reuse RequestOTP logic, but RequestOTP checks nothing, just generates/sends.
+	return s.RequestOTP(email)
+}
+
+func (s *AuthService) ResetPassword(email, otp, newPassword string) error {
+	// Verify OTP first
+	s.mu.RLock()
+	data, exists := s.otpMap[email]
+	s.mu.RUnlock()
+
+	if !exists {
+		return errors.New("otp not found or expired")
+	}
+
+	if time.Now().After(data.ExpiresAt) {
+		s.mu.Lock()
+		delete(s.otpMap, email)
+		s.mu.Unlock()
+		return errors.New("otp expired")
+	}
+
+	if data.Code != otp {
+		return errors.New("invalid otp")
+	}
+
+	// OTP is valid. Now update password.
+	user, err := s.repo.FindByEmail(email)
+	if err != nil {
+		return errors.New("user not found")
+	}
+
+	// Check if new password is same as old password
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(newPassword)); err == nil {
+		return errors.New("new password cannot be the same as the old password")
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	user.PasswordHash = string(hashed)
+	user.TokenVersion++ // Revoke all old tokens
+	// Optionally mark as verified if they reset password via email OTP?
+	// Usually resetting password via email implies email ownership.
+	// user.EmailVerified = true
+
+	if err := s.repo.Update(user); err != nil {
+		return err
+	}
+
+	// Clear OTP
+	s.mu.Lock()
+	delete(s.otpMap, email)
+	s.mu.Unlock()
+
+	return nil
+}
+
+func (s *AuthService) VerifyResetOTP(email, code string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	data, exists := s.otpMap[email]
+	if !exists {
+		return errors.New("otp not found or expired")
+	}
+
+	if time.Now().After(data.ExpiresAt) {
+		delete(s.otpMap, email)
+		return errors.New("otp expired")
+	}
+
+	if data.Code != code {
+		data.Attempts++
+		s.otpMap[email] = data
+		if data.Attempts >= 5 {
+			delete(s.otpMap, email)
+			return errors.New("too many failed attempts, please request a new OTP")
+		}
+		return errors.New("invalid otp")
+	}
+
+	// OTP is valid. We do NOT delete it here, so it can be used for the actual reset.
 	return nil
 }

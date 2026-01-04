@@ -11,6 +11,7 @@ type User struct {
 	CountryCode   string    `json:"country_code"`
 	PasswordHash  string    `json:"-"`
 	EmailVerified bool      `json:"email_verified" gorm:"default:false"`
+	TokenVersion  int       `json:"-" gorm:"default:0"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
@@ -55,5 +56,15 @@ type UpdateProfileRequest struct {
 
 type ChangePasswordRequest struct {
 	OldPassword string `json:"old_password" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=6"`
+}
+
+type ForgotPasswordRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+type ResetPasswordRequest struct {
+	Email       string `json:"email" binding:"required,email"`
+	OTP         string `json:"otp" binding:"required,len=6"`
 	NewPassword string `json:"new_password" binding:"required,min=6"`
 }

@@ -106,15 +106,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Email not verified"})
 			return
 		}
-		if err.Error() == "user not found" {
-			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-			return
-		}
-		if err.Error() == "wrong password" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Wrong password"})
-			return
-		}
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		// Generic error message for security (User Enumeration protection)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
 	c.JSON(http.StatusOK, res)
@@ -177,4 +170,85 @@ func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, authResponse)
+}
+
+// ForgotPassword godoc
+// @Summary      Request password reset
+// @Description  Send OTP to email for password reset checking if user exists
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request  body      models.ForgotPasswordRequest  true  "Forgot Password request"
+// @Success      200      {object}  map[string]string
+// @Failure      400      {object}  map[string]string
+// @Failure      404      {object}  map[string]string
+// @Router       /auth/forgot-password [post]
+func (h *AuthHandler) ForgotPassword(c *gin.Context) {
+	var req models.ForgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Security: Always return 200 OK even if user not found
+	if err := h.service.ForgotPassword(req.Email); err != nil {
+		// Log the error internally but don't expose it
+		// fmt.Printf("Forgot password checking error: %v\n", err)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "If this email exists, a verification code has been sent"})
+}
+
+// ResetPassword godoc
+// @Summary      Reset password
+// @Description  Reset password using OTP
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request  body      models.ResetPasswordRequest  true  "Reset Password request"
+// @Success      200      {object}  map[string]string
+// @Failure      400      {object}  map[string]string
+// @Router       /auth/reset-password [post]
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var req models.ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.service.ResetPassword(req.Email, req.OTP, req.NewPassword); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Password reset successfully"})
+}
+
+// VerifyResetOTP godoc
+// @Summary      Verify OTP for Password Reset
+// @Description  Check if the OTP is valid without consuming it (for multi-step reset flow)
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request  body      object{email=string,otp=string}  true  "Email and OTP code"
+// @Success      200      {object}  map[string]string
+// @Failure      400      {object}  map[string]string
+// @Router       /auth/verify-reset-otp [post]
+func (h *AuthHandler) VerifyResetOTP(c *gin.Context) {
+	var req struct {
+		Email string `json:"email" binding:"required,email"`
+		OTP   string `json:"otp" binding:"required,len=6"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.service.VerifyResetOTP(req.Email, req.OTP); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "OTP verified"})
 }

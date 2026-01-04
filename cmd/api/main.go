@@ -68,14 +68,16 @@ func main() {
 	{
 		auth.POST("/register", authHandler.Register)
 		auth.POST("/login", authHandler.Login)
-		auth.POST("/forgot-password", authHandler.RequestOTP)
+		auth.POST("/forgot-password", authHandler.ForgotPassword)
+		auth.POST("/reset-password", authHandler.ResetPassword)
 		auth.POST("/request-otp", authHandler.RequestOTP)
 		auth.POST("/verify-otp", authHandler.VerifyOTP)
+		auth.POST("/verify-reset-otp", authHandler.VerifyResetOTP)
 	}
 
 	// Protected
 	api := r.Group("/api")
-	api.Use(middleware.JWTAuth(cfg.JWT.Secret))
+	api.Use(middleware.JWTAuth(cfg.JWT.Secret, userRepo))
 	{
 		users := api.Group("/users")
 		{
@@ -88,6 +90,7 @@ func main() {
 	// Swagger documentation
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
+	zapLogger.Info("VerifyResetOTP route registered")
 	zapLogger.Info("Server starting", zap.String("port", cfg.Server.Port))
 	zapLogger.Info("Swagger UI available at", zap.String("url", "http://localhost"+cfg.Server.Port+"/swagger/index.html"))
 	r.Run(cfg.Server.Port)
