@@ -15,3 +15,8 @@ smtp:
   port: 587
   email: "phamngocan2412@gmail.com" # Replace with your email or env var
   password: "" # Replace with env var
+
+redis:
+  addr: "redis:6379"
+  password: ""
+  db: 0

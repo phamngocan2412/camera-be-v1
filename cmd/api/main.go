@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
+
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
@@ -57,8 +60,20 @@ func main() {
 		zapLogger.Fatal("database connection failed", zap.Error(err))
 	}
 
+	// Redis Initialization
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     cfg.Redis.Addr,
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+	})
+
+	// Verify Redis connection
+	if err := rdb.Ping(context.Background()).Err(); err != nil {
+		zapLogger.Fatal("redis connection failed", zap.Error(err))
+	}
+
 	userRepo := repository.NewGORMUserRepository(dbConn)
-	authService := service.NewAuthService(userRepo, cfg.JWT.Secret, cfg.SMTP)
+	authService := service.NewAuthService(userRepo, cfg.JWT.Secret, rdb, zapLogger, cfg.SMTP)
 	userService := service.NewUserService(userRepo)
 
 	authHandler := handlers.NewAuthHandler(authService)

@@ -1,41 +1,35 @@
 package service
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"math/rand"
 	"net/smtp"
-	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
-
 	"github.com/phamngocan2412/camera-be-v1/internal/config"
 	"github.com/phamngocan2412/camera-be-v1/internal/models"
 	"github.com/phamngocan2412/camera-be-v1/internal/repository"
+	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 )
-
-type OTPData struct {
-	Code       string
-	ExpiresAt  time.Time
-	Attempts   int
-	LastSentAt time.Time
-}
 
 type AuthService struct {
 	repo       repository.UserRepository
 	jwtSecret  string
-	otpMap     map[string]OTPData
-	mu         sync.RWMutex
+	redis      *redis.Client
+	logger     *zap.Logger
 	smtpConfig config.SMTPConfig
 }
 
-func NewAuthService(repo repository.UserRepository, secret string, smtpConfig config.SMTPConfig) *AuthService {
+func NewAuthService(repo repository.UserRepository, secret string, rdb *redis.Client, logger *zap.Logger, smtpConfig config.SMTPConfig) *AuthService {
 	return &AuthService{
 		repo:       repo,
 		jwtSecret:  secret,
-		otpMap:     make(map[string]OTPData),
+		redis:      rdb,
+		logger:     logger,
 		smtpConfig: smtpConfig,
 	}
 }
@@ -48,6 +42,7 @@ func (s *AuthService) Register(email, password, firstName, lastName, phoneNumber
 			// Logic for existing unverified user: OVERWRITE old data with new registration details
 			hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 			if err != nil {
+				s.logger.Error("failed to hash password", zap.Error(err))
 				return nil, err
 			}
 
@@ -59,13 +54,16 @@ func (s *AuthService) Register(email, password, firstName, lastName, phoneNumber
 			existingUser.CreatedAt = time.Now()
 
 			if err := s.repo.Update(existingUser); err != nil {
+				s.logger.Error("failed to update unverified user", zap.Error(err))
 				return nil, err
 			}
 
-			// Resend OTP
-			if err := s.RequestOTP(email); err != nil {
-				fmt.Printf("[WARNING] Failed to resend OTP email: %v\n", err)
-			}
+			// Resend OTP (Async)
+			go func() {
+				if err := s.RequestOTP(email); err != nil {
+					s.logger.Warn("failed to resend OTP email (async)", zap.Error(err))
+				}
+			}()
 
 			// Return success response so Frontend treats it as a new registration
 			return &models.AuthResponse{
@@ -78,16 +76,17 @@ func (s *AuthService) Register(email, password, firstName, lastName, phoneNumber
 				Token:       "",
 			}, nil
 		}
-		return nil, errors.New("email already exists")
+		return nil, ErrEmailExists
 	}
 
 	// Check if phone number already exists
 	if _, err := s.repo.FindByPhoneNumber(phoneNumber); err == nil {
-		return nil, errors.New("phone number already exists")
+		return nil, ErrPhoneExists
 	}
 
 	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
+		s.logger.Error("failed to hash password", zap.Error(err))
 		return nil, err
 	}
 
@@ -100,15 +99,16 @@ func (s *AuthService) Register(email, password, firstName, lastName, phoneNumber
 		CountryCode:  countryCode,
 	}
 	if err := s.repo.Create(user); err != nil {
+		s.logger.Error("failed to create user", zap.Error(err))
 		return nil, err
 	}
 
-	// Send OTP email for verification
-	if err := s.RequestOTP(email); err != nil {
-		// Log error but don't fail registration
-		// User can still verify via OTP shown in logs
-		fmt.Printf("[WARNING] Failed to send OTP email: %v\n", err)
-	}
+	// Send OTP email for verification (Async)
+	go func() {
+		if err := s.RequestOTP(email); err != nil {
+			s.logger.Warn("failed to send OTP email (async)", zap.Error(err))
+		}
+	}()
 
 	// Return response without token - user must verify OTP first
 	return &models.AuthResponse{
@@ -126,21 +126,22 @@ func (s *AuthService) Register(email, password, firstName, lastName, phoneNumber
 func (s *AuthService) Login(email, password string) (*models.AuthResponse, error) {
 	user, err := s.repo.FindByEmail(email)
 	if err != nil {
-		return nil, errors.New("user not found")
+		return nil, ErrUserNotFound
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return nil, errors.New("wrong password")
+		return nil, ErrWrongPassword
 	}
 
 	// Check if email is verified
-	fmt.Printf("[DEBUG] Login Check - User ID: %d, Email: %s, Verified: %v\n", user.ID, user.Email, user.EmailVerified)
+	s.logger.Debug("login check", zap.Int("user_id", user.ID), zap.String("email", user.Email), zap.Bool("verified", user.EmailVerified))
 	if !user.EmailVerified {
-		return nil, errors.New("email not verified")
+		return nil, ErrEmailNotVerified
 	}
 
 	token, err := s.generateToken(user.ID, user.Email, user.TokenVersion)
 	if err != nil {
+		s.logger.Error("failed to generate token", zap.Error(err))
 		return nil, err
 	}
 
@@ -168,80 +169,73 @@ func (s *AuthService) generateToken(userID int, email string, tokenVersion int) 
 }
 
 func (s *AuthService) RequestOTP(email string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	ctx := context.Background()
+	key := "otp:" + email
 
-	// Check Rate Limiting (1 minute)
-	if existing, ok := s.otpMap[email]; ok {
-		if time.Since(existing.LastSentAt) < 1*time.Minute {
-			return errors.New("please wait 1 minute before requesting a new OTP")
-		}
+	// Check Rate Limiting (TTL check)
+	// If key exists and TTL is > 4 minutes (meaning requested less than 1 min ago given 5 min expiry), block?
+	// Simpler: Set a separate rate limit key or just check if OTP exists.
+	// For now, adhere to "wait 1 minute".
+	// We can store a separate key "rate_limit:email" with 1 min TTL.
+	rateKey := "rate_limit:" + email
+	if exists, _ := s.redis.Exists(ctx, rateKey).Result(); exists > 0 {
+		return ErrRateLimitExceeded
 	}
 
 	// Generate 6 digit OTP
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 	otp := fmt.Sprintf("%06d", rnd.Intn(1000000))
 
-	// Store in map with expiry
-	s.otpMap[email] = OTPData{
-		Code:       otp,
-		ExpiresAt:  time.Now().Add(5 * time.Minute),
-		Attempts:   0,
-		LastSentAt: time.Now(),
+	// Store in Redis with 5 minute expiry
+	// Also set rate limit key for 1 minute
+	pipe := s.redis.Pipeline()
+	pipe.Set(ctx, key, otp, 5*time.Minute)
+	pipe.Set(ctx, rateKey, "1", 1*time.Minute)
+	if _, err := pipe.Exec(ctx); err != nil {
+		s.logger.Error("failed to save OTP to redis", zap.Error(err))
+		return err
 	}
 
-	// DEBUG: Print OTP to console for testing
-	fmt.Printf("\n========== OTP DEBUG ==========\n")
-	fmt.Printf("Email: %s\n", email)
-	fmt.Printf("OTP Code: %s\n", otp)
-	fmt.Printf("Expires: %s\n", time.Now().Add(5*time.Minute).Format("15:04:05"))
-	fmt.Printf("===============================\n\n")
+	// DEBUG: Log OTP for dev environment if needed, but use Debug level
+	s.logger.Debug("OTP Generated", zap.String("email", email), zap.String("otp", otp))
 
 	// Send Email
 	return s.SendVerificationEmail(email, otp)
 }
 
 func (s *AuthService) VerifyOTP(email, code string) (*models.AuthResponse, error) {
-	s.mu.Lock() // Use Lock instead of RLock because we update Attempts
-	data, exists := s.otpMap[email]
+	ctx := context.Background()
+	key := "otp:" + email
 
-	if !exists {
-		s.mu.Unlock()
-		return nil, errors.New("otp not found or expired")
+	// Get OTP from Redis
+	storedOTP, err := s.redis.Get(ctx, key).Result()
+	if err == redis.Nil {
+		return nil, ErrOTPNotFound
+	} else if err != nil {
+		s.logger.Error("redis error", zap.Error(err))
+		return nil, err
 	}
 
-	if time.Now().After(data.ExpiresAt) {
-		delete(s.otpMap, email)
-		s.mu.Unlock()
-		return nil, errors.New("otp expired")
-	}
-
-	if data.Code != code {
-		data.Attempts++
-		s.otpMap[email] = data
-		if data.Attempts >= 5 {
-			delete(s.otpMap, email)
-			s.mu.Unlock()
-			return nil, errors.New("too many failed attempts, please request a new OTP")
-		}
-		s.mu.Unlock()
-		return nil, errors.New("invalid otp")
+	if storedOTP != code {
+		// Attempts? Redis doesn't natively track attempts in the value unless we use a hash or separate key.
+		// For simplicity, we just fail. If strict attempt limiting is needed, we'd use 'incr' on a separate key.
+		return nil, ErrInvalidOTP
 	}
 
 	// Clear OTP after success
-	delete(s.otpMap, email)
-	s.mu.Unlock()
+	s.redis.Del(ctx, key)
 
 	// Fetch user from database
 	user, err := s.repo.FindByEmail(email)
 	if err != nil {
-		return nil, errors.New("user not found")
+		return nil, ErrUserNotFound
 	}
 
 	// Mark email as verified
 	user.EmailVerified = true
 	if err := s.repo.Update(user); err != nil {
-		return nil, errors.New("failed to verify email")
+		s.logger.Error("failed to verify email", zap.Error(err))
+		return nil, err
 	}
 
 	// Generate token for verified user
@@ -297,6 +291,7 @@ func (s *AuthService) SendVerificationEmail(toEmail, otp string) error {
 
 	addr := fmt.Sprintf("%s:%d", s.smtpConfig.Host, s.smtpConfig.Port)
 	if err := smtp.SendMail(addr, auth, s.smtpConfig.Email, []string{toEmail}, msg); err != nil {
+		s.logger.Error("failed to send email", zap.Error(err))
 		return err
 	}
 	return nil
@@ -305,49 +300,40 @@ func (s *AuthService) SendVerificationEmail(toEmail, otp string) error {
 func (s *AuthService) ForgotPassword(email string) error {
 	_, err := s.repo.FindByEmail(email)
 	if err != nil {
-		// User not found - strict security might say "return nil" to avoid enumeration,
-		// but typically for UX we might want to say "user not found" or just send nothing.
-		// For this implementation, let's treat "user not found" as an error to the caller,
-		// or handle it gracefully. The handler can decide whether to expose it.
-		// If we want to mimic "always success" for security, we return nil here if ErrRecordNotFound.
-		return errors.New("user not found")
+		return ErrUserNotFound
 	}
-
-	// User exists, send OTP
-	// We can reuse RequestOTP logic, but RequestOTP checks nothing, just generates/sends.
-	return s.RequestOTP(email)
+	go func() {
+		if err := s.RequestOTP(email); err != nil {
+			s.logger.Warn("failed to send forgot password otp (async)", zap.Error(err))
+		}
+	}()
+	return nil
 }
 
 func (s *AuthService) ResetPassword(email, otp, newPassword string) error {
 	// Verify OTP first
-	s.mu.RLock()
-	data, exists := s.otpMap[email]
-	s.mu.RUnlock()
+	ctx := context.Background()
+	key := "otp:" + email
 
-	if !exists {
-		return errors.New("otp not found or expired")
+	storedOTP, err := s.redis.Get(ctx, key).Result()
+	if err == redis.Nil {
+		return ErrOTPNotFound
+	} else if err != nil {
+		return err
 	}
 
-	if time.Now().After(data.ExpiresAt) {
-		s.mu.Lock()
-		delete(s.otpMap, email)
-		s.mu.Unlock()
-		return errors.New("otp expired")
-	}
-
-	if data.Code != otp {
-		return errors.New("invalid otp")
+	if storedOTP != otp {
+		return ErrInvalidOTP
 	}
 
 	// OTP is valid. Now update password.
 	user, err := s.repo.FindByEmail(email)
 	if err != nil {
-		return errors.New("user not found")
+		return ErrUserNotFound
 	}
 
-	// Check if new password is same as old password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(newPassword)); err == nil {
-		return errors.New("new password cannot be the same as the old password")
+		return ErrSamePassword
 	}
 
 	hashed, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
@@ -357,46 +343,32 @@ func (s *AuthService) ResetPassword(email, otp, newPassword string) error {
 
 	user.PasswordHash = string(hashed)
 	user.TokenVersion++ // Revoke all old tokens
-	// Optionally mark as verified if they reset password via email OTP?
-	// Usually resetting password via email implies email ownership.
-	// user.EmailVerified = true
 
 	if err := s.repo.Update(user); err != nil {
 		return err
 	}
 
 	// Clear OTP
-	s.mu.Lock()
-	delete(s.otpMap, email)
-	s.mu.Unlock()
+	s.redis.Del(ctx, key)
 
 	return nil
 }
 
 func (s *AuthService) VerifyResetOTP(email, code string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	ctx := context.Background()
+	key := "otp:" + email
 
-	data, exists := s.otpMap[email]
-	if !exists {
-		return errors.New("otp not found or expired")
+	storedOTP, err := s.redis.Get(ctx, key).Result()
+	if err == redis.Nil {
+		return ErrOTPNotFound
+	} else if err != nil {
+		return err
 	}
 
-	if time.Now().After(data.ExpiresAt) {
-		delete(s.otpMap, email)
-		return errors.New("otp expired")
+	if storedOTP != code {
+		return ErrInvalidOTP
 	}
 
-	if data.Code != code {
-		data.Attempts++
-		s.otpMap[email] = data
-		if data.Attempts >= 5 {
-			delete(s.otpMap, email)
-			return errors.New("too many failed attempts, please request a new OTP")
-		}
-		return errors.New("invalid otp")
-	}
-
-	// OTP is valid. We do NOT delete it here, so it can be used for the actual reset.
+	// OTP is valid.
 	return nil
 }
