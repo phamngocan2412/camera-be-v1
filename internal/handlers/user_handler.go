@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/phamngocan2412/camera-be-v1/internal/models"
+	"errors"
 	"github.com/phamngocan2412/camera-be-v1/internal/service"
 )
 
@@ -61,7 +62,7 @@ func (h *UserHandler) UpdateMe(c *gin.Context) {
 
 	profile, err := h.userService.UpdateProfile(userID, req)
 	if err != nil {
-		if err.Error() == "email already exists" {
+		if errors.Is(err, service.ErrEmailExists) {
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -93,7 +94,7 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 	}
 
 	if err := h.userService.ChangePassword(userID, req); err != nil {
-		if err.Error() == "old password incorrect" {
+		if errors.Is(err, service.ErrOldPasswordIncorrect) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "old password incorrect"})
 		} else {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to change password"})

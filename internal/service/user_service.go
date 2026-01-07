@@ -9,6 +9,10 @@ import (
 	"github.com/phamngocan2412/camera-be-v1/internal/repository"
 )
 
+var (
+	ErrOldPasswordIncorrect = errors.New("old password incorrect")
+)
+
 type UserService struct {
 	repo repository.UserRepository
 }
@@ -40,7 +44,7 @@ func (s *UserService) UpdateProfile(userID int, req models.UpdateProfileRequest)
 
 	if req.Email != "" && req.Email != user.Email {
 		if _, err := s.repo.FindByEmail(req.Email); err == nil {
-			return nil, errors.New("email already exists")
+			return nil, ErrEmailExists
 		}
 		user.Email = req.Email
 	}
@@ -63,7 +67,7 @@ func (s *UserService) ChangePassword(userID int, req models.ChangePasswordReques
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.OldPassword)); err != nil {
-		return errors.New("old password incorrect")
+		return ErrOldPasswordIncorrect
 	}
 
 	hashed, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
