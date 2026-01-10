@@ -1,0 +1,3 @@
+## 2025-05-22 - [Optimized Email Existence Check]
+**Vấn đề:** Trong hàm `UpdateProfile`, code hiện tại gọi `FindByEmail` để kiểm tra email đã tồn tại hay chưa. Việc này thực hiện câu lệnh `SELECT *` lấy toàn bộ dữ liệu user (bao gồm các trường lớn như `PasswordHash`) và map sang struct `models.User`, gây lãng phí DB IO và Memory Allocation không cần thiết vì ta chỉ cần biết email có tồn tại hay không.
+**Giải pháp:** Thêm method `ExistsByEmail` vào Repository sử dụng `COUNT` (hoặc `SELECT 1`). Update Service để sử dụng method này. Giảm độ phức tạp từ O(N) (về lượng dữ liệu transfer/alloc) xuống O(1).

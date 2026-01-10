@@ -39,7 +39,11 @@ func (s *UserService) UpdateProfile(userID int, req models.UpdateProfileRequest)
 	}
 
 	if req.Email != "" && req.Email != user.Email {
-		if _, err := s.repo.FindByEmail(req.Email); err == nil {
+		exists, err := s.repo.ExistsByEmail(req.Email)
+		if err != nil {
+			return nil, err
+		}
+		if exists {
 			return nil, errors.New("email already exists")
 		}
 		user.Email = req.Email

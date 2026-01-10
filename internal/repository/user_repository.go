@@ -13,6 +13,7 @@ import (
 
 type UserRepository interface {
 	FindByEmail(email string) (*models.User, error)
+	ExistsByEmail(email string) (bool, error)
 	FindByPhoneNumber(phoneNumber string) (*models.User, error)
 	FindByID(id int) (*models.User, error)
 	Create(user *models.User) error
@@ -45,6 +46,14 @@ func (r *GORMUserRepository) FindByEmail(email string) (*models.User, error) {
 		PasswordHash:  u.PasswordHash,
 		EmailVerified: u.EmailVerified,
 	}, nil
+}
+
+func (r *GORMUserRepository) ExistsByEmail(email string) (bool, error) {
+	var count int64
+	if err := r.db.Model(&db.User{}).Where("email = ?", email).Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 func (r *GORMUserRepository) FindByPhoneNumber(phoneNumber string) (*models.User, error) {
