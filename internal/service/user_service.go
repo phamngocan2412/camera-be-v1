@@ -38,16 +38,21 @@ func (s *UserService) UpdateProfile(userID int, req models.UpdateProfileRequest)
 		return nil, err
 	}
 
+	updated := false
 	if req.Email != "" && req.Email != user.Email {
 		if _, err := s.repo.FindByEmail(req.Email); err == nil {
 			return nil, errors.New("email already exists")
 		}
 		user.Email = req.Email
+		updated = true
 	}
 
-	if err := s.repo.Update(user); err != nil {
-		return nil, err
+	if updated {
+		if err := s.repo.Update(user); err != nil {
+			return nil, err
+		}
 	}
+
 	return &models.UserProfile{
 		ID:        user.ID,
 		Email:     user.Email,
