@@ -121,7 +121,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		// The prompt just said "Return the JSON response with the translated error message".
 		// I'll assume we map strict errors to generic "invalid email or password" unless specific like verified.
 		// For now let's map generic.
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"}) // TODO: Add key for generic login fail
+		c.JSON(http.StatusUnauthorized, gin.H{"error": i18n.GetMessage(lang, "invalid_credentials")})
 		return
 	}
 	c.JSON(http.StatusOK, res)

@@ -30,6 +30,7 @@ var messages = map[string]map[string]string{
 		"forgot_password_msg":    "If this email exists, a verification code has been sent",
 		"invalid_phone_format":   "Invalid phone number format",
 		"invalid_phone":          "Invalid phone number",
+		"invalid_credentials":    "Invalid email or password",
 	},
 	LangVI: {
 		"email_exists":           "Email đã tồn tại",
@@ -50,6 +51,7 @@ var messages = map[string]map[string]string{
 		"forgot_password_msg":    "Nếu email tồn tại, mã xác thực đã được gửi",
 		"invalid_phone_format":   "Định dạng số điện thoại không hợp lệ",
 		"invalid_phone":          "Số điện thoại không hợp lệ",
+		"invalid_credentials":    "Email hoặc mật khẩu không đúng",
 	},
 }
 
